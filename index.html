@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo App</title>
+    <link rel="shortcut icon" href="/images/favicon.png" type="image/x-icon">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/lib/onsenui.css">
+    <link rel="stylesheet" href="/lib/onsen-css-components.min.css">
+    <script src="/lib/onsenui.min.js"></script>
+    <script src="/lib/jquery.min.js"></script>
+    <script src="/lib/uuidv4.min.js"></script>
+    <script src="/lib/fuse.min.js"></script>
+</head>
+
+<body>
+    <ons-navigator swipeable id="app" page="main">
+        <template id="main">
+            <ons-page id="main-page">
+                <ons-toolbar>
+                    <div class="center">Todos</div>
+                    <div class="right">
+                        <ons-toolbar-button class="add-todo-btn" style="font-size:25px;">+</ons-toolbar-button>
+                    </div>
+                </ons-toolbar>
+
+                <ons-search-input style="width:100%;font-size:20px !important;" placeholder="Search Todos"
+                    class="search-todos">
+                </ons-search-input>
+
+                <ons-fab position="bottom right" class="add-todo-btn">
+                    <ons-icon icon="md-plus"></ons-icon>
+                </ons-fab>
+
+                <div class="my-todos-message no-tasks-message">No Todos
+                    Created Yet. Create
+                    A Task By
+                    Clicking The&nbsp;
+                    <ons-icon icon="plus"></ons-icon>
+                    Icon
+                </div>
+
+                <div class="my-todos-message not-found-message">
+                    No Todos Found With The Requested Search Query
+                </div>
+
+                <ons-list class="my-todos"></ons-list>
+            </ons-page>
+        </template>
+
+        <template id="add-todo">
+            <ons-page>
+                <ons-toolbar>
+                    <div class="left">
+                        <ons-back-button class="add-todo-back-btn">See Tasks</ons-back-button>
+                    </div>
+                    <div class="center">Add Todo</div>
+                </ons-toolbar>
+                <input placeholder="Enter Title" class="add-todo-title" maxlength="500">
+                <textarea placeholder="Enter Something More..." class="add-todo-desc" maxlength="10000"></textarea>
+                <ons-button class="add-new-todo-btn" onclick="window.addTodo();"
+                    style="width: calc(100% - 10px);background-color:rgb(23, 142, 189);margin-top:20px;display: block;margin-left: auto;margin-right: auto;border-radius: 10px; text-align: center;cursor: pointer;display: flex;align-items: center;justify-content: center;gap:10px;margin-bottom:15px;">
+                    <ons-icon icon="md-plus"></ons-icon>
+                    Add Todo
+                </ons-button>
+            </ons-page>
+        </template>
+
+        <template id="view-todo">
+            <ons-page id="see-todo">
+                <ons-toolbar>
+                    <div class="left">
+                        <ons-back-button class="view-todo-back-btn">See Tasks</ons-back-button>
+                    </div>
+                    <div class="center">View Todo</div>
+                </ons-toolbar>
+                <div class="view-todo-title"></div>
+                <div class="view-todo-desc"></div>
+                <ons-button onclick="window.deleteTask($(this.parentNode.parentNode).attr('task-id'));"
+                    style="margin-top: 10px;width: calc(100% - 10px);text-align: center;display: block;margin-left: auto;margin-right: auto;font-family: 'Barlow', sans-serif;background-color:rgb(250, 20, 20);cursor: pointer;">
+                    Delete</ons-button>
+            </ons-page>
+        </template>
+    </ons-navigator>
+</body>
+
+<style>
+    @import url('/lib/fonts/fonts.css');
+
+    .my-todos-message {
+        text-align: center;
+        margin-top: 10px;
+        display: none;
+    }
+
+    .task {
+        width: calc(100vw - 80px);
+        font-family: 'Barlow';
+        font-size: 20px;
+        margin-top: -2px;
+        margin-left: 10px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .add-todo-title {
+        width: calc(100% - 30px);
+        padding: 10px;
+        border: 0;
+        border-radius: 10px;
+        background-color: lightgrey;
+        display: block;
+        margin-right: auto;
+        margin-left: auto;
+        font-size: 17px;
+        margin-top: 10px;
+        font-family: 'Barlow', sans-serif;
+    }
+
+    .add-todo-desc {
+        width: calc(100% - 30px);
+        height: calc(100vh - 132.5px - 132.5px);
+        padding: 10px;
+        border: 0;
+        border-radius: 10px;
+        background-color: lightgrey;
+        display: block;
+        margin-right: auto;
+        margin-left: auto;
+        font-size: 17px;
+        margin-top: 10px;
+        resize: none;
+        font-family: 'Roboto', sans-serif;
+    }
+
+    .view-todo-title {
+        font-weight: 500;
+        user-select: text;
+        font-family: 'Roboto', sans-serif;
+        font-size: 25px;
+        margin-left: 5px;
+    }
+
+    .view-todo-desc {
+        font-family: 'Barlow', sans-serif;
+        font-weight: 500;
+        font-size: 20px;
+        margin-left: 5px;
+        margin-top: 10px;
+        user-select: text;
+    }
+
+    .view-todo-title,
+    .view-todo-desc {
+        width: 100%;
+        word-break: break-all;
+    }
+</style>
+
+<script>
+    $(document).ready(() => {
+        $('.not-found-message').hide();
+
+        tasks = localStorage.getItem('tasks');
+        if (tasks != null && tasks != undefined) {
+            try {
+                window.tasks = JSON.parse(tasks);
+            }
+            catch (err) {
+                window.tasks = [];
+            }
+        }
+        else {
+            localStorage.setItem('tasks', '[]');
+            window.tasks = [];
+        }
+
+        window._tasks_length_ = window.tasks.length;
+        function ObserveTasksVariable() {
+            if (window._tasks_length_ != window.tasks.length) {
+                window._tasks_length_ = window.tasks.length;
+                try {
+                    localStorage.setItem('tasks', JSON.stringify(window.tasks));
+                }
+                catch { }
+            }
+            setTimeout(ObserveTasksVariable, 100)
+        }
+
+        ObserveTasksVariable();
+
+        for (task in window.tasks) {
+            var task_item = document.createElement('ons-list-item');
+            task_item.setAttribute('modifier', 'chevron');
+            task_item.setAttribute('tappable', 'true');
+            task_item.className = 'task-item';
+            task_item.setAttribute('task-id', window.tasks[task].id);
+
+            var task_checkbox = document.createElement('ons-checkbox');
+            window.tasks[task]['completed'] == true ? task_checkbox.checked = 'true' : null;
+            task_item.appendChild(task_checkbox);
+
+            var task_text = document.createElement('div');
+            task_text.className = 'task';
+            task_text.innerText = window.tasks[task].title;
+            task_item.appendChild(task_text);
+
+            document.querySelector('.my-todos').appendChild(task_item);
+        }
+
+        $('.add-todo-btn').click(() => {
+            document.querySelector('#app').pushPage('add-todo').then(() => {
+                $('.add-todo-title').focus();
+            });
+        });
+
+        window.refreshFunction = () => {
+            $('ons-checkbox').change((elem) => {
+                var selected_id = $(elem.currentTarget.parentNode.parentNode).attr('task-id');
+                var iter_task = 0;
+                window.tasks.forEach((task) => {
+                    if (task['id'] == selected_id) {
+                        if (elem.currentTarget.checked == true) {
+                            task['completed'] = true;
+                        }
+                        else {
+                            task['completed'] = false;
+                        }
+                        localStorage.setItem('tasks', JSON.stringify(window.tasks));
+                    }
+                });
+            });
+
+            $('ons-list-item').click((elem) => {
+                !$(elem.target).hasClass('checkbox__input') ? document.querySelector('#app').pushPage('view-todo', { data: { taskId: $(elem.currentTarget).attr('task-id') } }) : null;
+            });
+
+            if (window.tasks.length != 0) {
+                $('.no-tasks-message').fadeOut(500);
+            }
+            else {
+                $('.no-tasks-message').fadeIn(500);
+            }
+
+            var task_item_elems = document.querySelectorAll('.task-item');
+            for (task_item_elem in task_item_elems) {
+                try {
+                    task_item = ons.GestureDetector(task_item_elems[task_item_elem]);
+                    task_item.on('hold', (elem) => {
+                        ons.openActionSheet({
+                            title: 'Task Options',
+                            cancelable: true,
+                            buttons: [
+                                {
+                                    label: 'Open'
+                                }, {
+                                    label: 'Delete',
+                                    modifier: 'destructive'
+                                },
+                                {
+                                    label: 'Cancel'
+                                }
+                            ]
+                        }).then(resp => {
+                            var task_selected;
+                            if ($(elem.srcElement).hasClass('task-item')) {
+                                task_selected = elem.srcElement;
+                            }
+                            else if ($(elem.srcElement.parentNode).hasClass('task-item')) {
+                                task_selected = elem.srcElement.parentNode;
+                            }
+                            else if ($(elem.srcElement.parentNode.parentNode).hasClass('task-item')) {
+                                task_selected = elem.srcElement.parentNode.parentNode;
+                            }
+                            if (resp == 0 && task_selected != null) {
+                                !$(elem.target).hasClass('checkbox__input') ? document.querySelector('#app').pushPage('view-todo', { data: { taskId: $(task_selected).attr('task-id') } }) : null;
+                            }
+                            else if (resp == 1 && task_selected != null) {
+                                window.deleteTask($(task_selected).attr('task-id'));
+                            }
+                            else if (resp == 2) { }
+                            else if (resp == -1) { }
+                            else {
+                                ons.notification.alert({ title: 'Error', message: 'Sorry, An Error Occured While Using The Function' });
+                            }
+                        });
+                    });
+                }
+                catch { continue }
+            }
+        }
+
+        const fuse = new Fuse(window.tasks, {
+            shouldSort: true,
+            keys: ['title', 'desc']
+        })
+
+        $('.search-todos').on('keyup', () => {
+            $('.task-item').remove();
+            if ($('.search-todos').val().trim() != '') {
+                results = fuse.search($('.search-todos').val());
+                if (results.length != 0) {
+                    $('.not-found-message').hide();
+                    results.forEach(result => {
+                        result = result.item;
+                        var task_item = document.createElement('ons-list-item');
+                        task_item.setAttribute('modifier', 'chevron');
+                        task_item.setAttribute('tappable', 'true');
+                        task_item.className = 'task-item';
+                        task_item.setAttribute('task-id', result.id);
+
+                        var task_checkbox = document.createElement('ons-checkbox');
+                        result['completed'] == true ? task_checkbox.checked = 'true' : null;
+                        task_item.appendChild(task_checkbox);
+
+                        var task_text = document.createElement('div');
+                        task_text.className = 'task';
+                        task_text.innerText = result.title;
+                        task_item.appendChild(task_text);
+
+                        document.querySelector('.my-todos').appendChild(task_item);
+                        window.refreshFunction();
+                    });
+                }
+                else {
+                    $('.not-found-message').fadeIn(500);
+                }
+            }
+            else {
+                $('.not-found-message').hide();
+                for (task in window.tasks) {
+                    var task_item = document.createElement('ons-list-item');
+                    task_item.setAttribute('modifier', 'chevron');
+                    task_item.setAttribute('tappable', 'true');
+                    task_item.className = 'task-item';
+                    task_item.setAttribute('task-id', window.tasks[task].id);
+
+                    var task_checkbox = document.createElement('ons-checkbox');
+                    window.tasks[task]['completed'] == true ? task_checkbox.checked = 'true' : null;
+                    task_item.appendChild(task_checkbox);
+
+                    var task_text = document.createElement('div');
+                    task_text.className = 'task';
+                    task_text.innerText = window.tasks[task].title;
+                    task_item.appendChild(task_text);
+
+                    document.querySelector('.my-todos').appendChild(task_item);
+                }
+            }
+        });
+
+        window.addTodo = function () {
+            var title = $('.add-todo-title').val();
+            var desc = $('.add-todo-desc').val();
+            if (title.trim() != '') {
+                generated_id = uuidv4();
+                window.tasks.splice(0, 0, {
+                    title: title,
+                    desc: desc,
+                    completed: false,
+                    id: generated_id
+                });
+
+                var task_item = document.createElement('ons-list-item');
+                task_item.setAttribute('modifier', 'chevron');
+                task_item.setAttribute('tappable', 'true');
+                task_item.className = 'task-item';
+                task_item.setAttribute('task-id', generated_id);
+                task_item.style.display = 'none';
+
+                var task_checkbox = document.createElement('ons-checkbox');
+                task_item.appendChild(task_checkbox);
+
+                var task_text = document.createElement('div');
+                task_text.className = 'task';
+                task_text.innerText = title;
+                task_item.appendChild(task_text);
+
+                document.querySelector('.my-todos').prepend(task_item);
+                $('.add-todo-back-btn').click();
+                $(task_item).fadeIn(800);
+                refreshFunction();
+            }
+            else {
+                ons.notification.alert({ title: 'Title Blank', message: 'Title Of Task Is Needed' }).then(() => {
+                    $('.add-todo-title').focus();
+                });
+            }
+        }
+
+        if (window.tasks.length != 0) {
+            $('.no-tasks-message').fadeOut(500);
+            window.refreshFunction();
+        } else {
+            $('.no-tasks-message').fadeIn(500);
+        }
+    });
+
+    document.addEventListener('init', (event) => {
+        if (event.target.id == 'see-todo') {
+            window.tasks.forEach(element => {
+                if (element['id'] == event.target.data.taskId) {
+                    $('.view-todo-title').text(element['title']);
+                    $('.view-todo-desc').text(element['desc']);
+                    $('#see-todo').attr('task-id', element['id']);
+                }
+            });
+        }
+    });
+
+    window.deleteTask = function (task_id) {
+        if (task_id != null) {
+            ons.notification.confirm({ title: 'Delete', message: 'Are You Sure You Want To Delete This Task?', buttonLabels: ['Cancel', '<span style="color:red">Delete</span>'] }).then(resp => {
+                if (resp == 1) {
+                    for (task in window.tasks) {
+                        if (tasks[task].id == task_id) {
+                            delete window.tasks[task];
+                            window.tasks = window.tasks.filter(arr => {
+                                return arr != null;
+                            });
+                            var all_tasks = document.querySelectorAll('.task');
+                            for (a_task in all_tasks) {
+                                if (all_tasks[a_task] != null && all_tasks[a_task] != undefined && typeof all_tasks[a_task] != "function" && typeof all_tasks[a_task] != "number") {
+                                    if ($(all_tasks[a_task].parentNode.parentNode).attr('task-id') != null && $(all_tasks[a_task].parentNode.parentNode).attr('task-id') == task_id) {
+                                        $(all_tasks[a_task].parentNode).fadeOut(300, () => {
+                                            $(all_tasks[a_task].parentNode).remove();
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    window.refreshFunction();
+                    $('.view-todo-back-btn').click();
+                }
+            });
+        }
+    }
+</script>
+
+</html>
